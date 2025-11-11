@@ -1,191 +1,180 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const buttons = document.querySelectorAll(".filter-btn");
-  const picker = document.getElementById("customPicker");
-  const customDateInput = document.getElementById("customDate");
-  const applyBtn = document.getElementById("applyCustom");
-  const deptFilter = document.getElementById("departmentFilter");
-  const resultsTitle = document.getElementById("resultsTitle");
-  const tableBody = document.querySelector("#reportsTable tbody");
+// reports.js - Updated for Django template
+document.addEventListener('DOMContentLoaded', () => {
+  const filterButtons = document.querySelectorAll('.filter-btn');
+  const customPicker = document.getElementById('customPicker');
+  const customDateInput = document.getElementById('customDate');
+  const applyBtn = document.getElementById('applyCustom');
+  const resultsTitle = document.getElementById('resultsTitle');
+  const tableBody = document.querySelector('#reportsTable tbody');
+  const deptFilter = document.getElementById('departmentFilter');
 
-  // Sample data (replace with backend data as needed)
-  const reports = [
-    { id: 101, dept: "CS", issue: "Projector not working", date: "2025-10-25", status: "Pending" },
-    { id: 102, dept: "EE", issue: "Fuse issue", date: "2025-10-15", status: "Completed" },
-    { id: 103, dept: "ME", issue: "AC Maintenance", date: "2025-11-02", status: "In Progress" },
-    { id: 104, dept: "CE", issue: "Broken Chairs", date: "2025-11-04", status: "Pending" },
-    { id: 105, dept: "General", issue: "Water leak", date: "2025-09-30", status: "Completed" },
-  ];
+  // Get all rows from the table (populated by Django)
+  const allRows = Array.from(tableBody.querySelectorAll('tr[data-department]'));
+  
+  // Canonical base title
+  let baseTitle = 'Showing: All recent reports';
 
-  // Base title (used to compose the resultsTitle)
-  let baseTitle = "Showing: All recent reports";
+  // Initialize
+  applyDepartmentFilter();
+  showCustomPicker(false);
 
-  // Initial render
-  render(reports);
-  resultsTitle.textContent = baseTitle;
-
-  // Wire quick filter buttons
-  buttons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      buttons.forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-
-      const f = btn.dataset.filter;
-      if (f === "custom") {
-        picker.style.display = "flex";
+  // Filter button click behavior
+  filterButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      setActiveFilter(btn);
+      const filter = btn.dataset.filter;
+      if (filter === 'custom') {
+        showCustomPicker(true);
       } else {
-        picker.style.display = "none";
-        applyQuickFilter(f);
+        showCustomPicker(false);
+        applyQuickFilter(filter);
       }
     });
   });
 
-  // Apply custom date
-  if (applyBtn) {
-    applyBtn.addEventListener("click", () => {
-      const dateVal = customDateInput.value;
-      if (!dateVal) {
-        alert("Please choose a date.");
-        return;
-      }
-      applyCustomDate(dateVal);
-    });
-  }
-
-  // Department header filter
-  if (deptFilter) {
-    deptFilter.addEventListener("change", () => {
-      applyDepartmentFilter();
-    });
-  }
-
-  // --- Helper functions ---
-
-  // Render rows into tbody
-  function render(rows) {
-    tableBody.innerHTML = "";
-    if (!rows || rows.length === 0) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 6;
-      td.style.textAlign = "center";
-      td.style.padding = "18px";
-      td.style.color = "#6b7280";
-      td.textContent = "No reports found for selected range.";
-      tr.appendChild(td);
-      tableBody.appendChild(tr);
+  applyBtn.addEventListener('click', () => {
+    const dateVal = customDateInput.value;
+    if (!dateVal) {
+      alert('Please choose a date.');
       return;
     }
+    applyCustomDate(dateVal);
+  });
 
-    rows.forEach(r => {
-      const tr = document.createElement("tr");
-      tr.setAttribute("data-department", r.dept || "General");
-      tr.innerHTML = `
-        <td>${r.id}</td>
-        <td>${r.dept}</td>
-        <td>${escapeHtml(r.issue)}</td>
-        <td>${formatDate(new Date(r.date))}</td>
-        <td><span class="status ${statusClass(r.status)}">${r.status}</span></td>
-        <td><button class="btn-view" data-id="${r.id}">View</button></td>
-      `;
-      tableBody.appendChild(tr);
+  // Header department filter change
+  if (deptFilter) {
+    deptFilter.addEventListener('change', () => {
+      applyDepartmentFilter();
+      updateResultsTitle();
     });
+  }
 
-    // Attach view handlers (placeholder action)
-    tableBody.querySelectorAll(".btn-view").forEach(b => {
-      b.addEventListener("click", (e) => {
-        const id = e.currentTarget.dataset.id;
-        alert("Open report view for ID: " + id + " (wire to backend page)");
-      });
+  // Helper: set active class
+  function setActiveFilter(btn) {
+    filterButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  // Show/hide custom picker
+  function showCustomPicker(show) {
+    if (customPicker) {
+      customPicker.setAttribute('aria-hidden', String(!show));
+      customPicker.style.display = show ? 'flex' : 'none';
+    }
+  }
+
+  // Quick filters: this week / month / year
+  function applyQuickFilter(type) {
+    const now = new Date();
+    let startDate, endDate;
+
+    if (type === 'week') {
+      const day = now.getDay(); // 0 Sun .. 6 Sat
+      const diff = (day === 0 ? 6 : day - 1); // Monday start
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - diff);
+      startDate.setHours(0,0,0,0);
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23,59,59,999);
+      baseTitle = `Showing: This week (${formatDate(startDate)} - ${formatDate(endDate)})`;
+      filterByDateRange(startDate, endDate);
+    } else if (type === 'month') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0,0,0,0);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      endDate.setHours(23,59,59,999);
+      baseTitle = `Showing: This month (${startDate.toLocaleString('default',{month:'short',year:'numeric'})})`;
+      filterByDateRange(startDate, endDate);
+    } else if (type === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+      startDate.setHours(0,0,0,0);
+      endDate = new Date(now.getFullYear(), 11, 31);
+      endDate.setHours(23,59,59,999);
+      baseTitle = `Showing: This year (${now.getFullYear()})`;
+      filterByDateRange(startDate, endDate);
+    }
+    updateResultsTitle();
+  }
+
+  // Custom date applied
+  function applyCustomDate(dateStr) {
+    const selected = new Date(dateStr);
+    const start = new Date(selected);
+    start.setHours(0,0,0,0);
+    const end = new Date(selected);
+    end.setHours(23,59,59,999);
+    baseTitle = `Showing: Custom: ${formatDate(start)}`;
+    filterByDateRange(start, end);
+    updateResultsTitle();
+  }
+
+  // Filter rows by date range
+  function filterByDateRange(startDate, endDate) {
+    allRows.forEach(row => {
+      const dateStr = row.getAttribute('data-date');
+      if (!dateStr) {
+        row.style.display = 'none';
+        return;
+      }
+      const rowDate = new Date(dateStr + 'T00:00:00');
+      if (rowDate >= startDate && rowDate <= endDate) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
     });
-
-    // Apply department filter immediately (keeps header filter consistent)
     applyDepartmentFilter();
   }
 
-  // Quick filter by week/month/year
-  function applyQuickFilter(type) {
-    const now = new Date();
-    let start, end, titleText;
-
-    if (type === "week") {
-      // Monday as start of week
-      const day = now.getDay(); // 0 (Sun) .. 6 (Sat)
-      const diff = (day === 0 ? 6 : day - 1);
-      start = new Date(now);
-      start.setDate(now.getDate() - diff);
-      start.setHours(0,0,0,0);
-      end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23,59,59,999);
-      titleText = `This week (${formatDate(start)} - ${formatDate(end)})`;
-    } else if (type === "month") {
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      start.setHours(0,0,0,0);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      end.setHours(23,59,59,999);
-      titleText = `This month (${start.toLocaleString(undefined,{month:'short',year:'numeric'})})`;
-    } else if (type === "year") {
-      start = new Date(now.getFullYear(), 0, 1);
-      start.setHours(0,0,0,0);
-      end = new Date(now.getFullYear(), 11, 31);
-      end.setHours(23,59,59,999);
-      titleText = `This year (${now.getFullYear()})`;
-    } else {
-      // unknown -> show all
-      render(reports);
-      baseTitle = "Showing: All recent reports";
-      resultsTitle.textContent = baseTitle;
-      return;
-    }
-
-    // filter data between start and end
-    const filtered = reports.filter(r => {
-      const d = new Date(r.date + "T00:00:00");
-      return d >= start && d <= end;
-    });
-
-    baseTitle = `Showing: ${titleText}`;
-    resultsTitle.textContent = baseTitle;
-    render(filtered);
-  }
-
-  // Apply custom date (single day)
-  function applyCustomDate(dateStr) {
-    const selected = new Date(dateStr);
-    const start = new Date(selected); start.setHours(0,0,0,0);
-    const end = new Date(selected); end.setHours(23,59,59,999);
-    const filtered = reports.filter(r => {
-      const d = new Date(r.date + "T00:00:00");
-      return d >= start && d <= end;
-    });
-    baseTitle = `Showing: Custom: ${formatDate(start)}`;
-    resultsTitle.textContent = baseTitle;
-    render(filtered);
-  }
-
-  // Apply header department filter (on current rendered rows)
+  // Show/hide rows based on header department filter
   function applyDepartmentFilter() {
     if (!deptFilter) return;
     const selected = deptFilter.value;
-    const rows = tableBody.querySelectorAll("tr");
-    let visible = 0;
+    const visibleRows = allRows.filter(row => row.style.display !== 'none' || !row.style.display);
+    let visibleCount = 0;
 
-    rows.forEach(row => {
-      const deptAttr = row.getAttribute("data-department");
-      if (!deptAttr) {
-        row.style.display = "";
+    allRows.forEach(row => {
+      // Skip if already hidden by date filter
+      if (row.style.display === 'none') {
         return;
       }
-      if (selected === "All" || deptAttr === selected) {
-        row.style.display = "";
-        visible++;
+      
+      const deptAttr = row.getAttribute('data-department');
+      if (selected === 'All' || deptAttr === selected) {
+        row.style.display = '';
+        visibleCount++;
       } else {
-        row.style.display = "none";
+        row.style.display = 'none';
       }
     });
 
-    const suffix = selected === "All" ? `All departments (${visible})` : `${selected} (${visible})`;
-    if (baseTitle && baseTitle.startsWith("Showing:")) {
+    // Check for empty message row
+    const emptyRow = tableBody.querySelector('tr:not([data-department])');
+    if (emptyRow) {
+      if (visibleCount === 0 && selected === 'All') {
+        emptyRow.style.display = '';
+      } else {
+        emptyRow.style.display = 'none';
+      }
+    }
+  }
+
+  // Update results title
+  function updateResultsTitle() {
+    if (!deptFilter) return;
+    const selected = deptFilter.value;
+    const visibleRows = allRows.filter(row => {
+      return row.style.display !== 'none' && 
+             (selected === 'All' || row.getAttribute('data-department') === selected);
+    });
+    const visibleCount = visibleRows.length;
+    
+    const suffix = selected === 'All' 
+      ? `All departments (${visibleCount})` 
+      : `${selected} (${visibleCount})`;
+    
+    if (baseTitle && baseTitle.startsWith('Showing:')) {
       resultsTitle.textContent = `${baseTitle} • ${suffix}`;
     } else {
       resultsTitle.textContent = `Showing: ${suffix}`;
@@ -194,25 +183,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Small helpers
   function formatDate(d) {
-    if (!d) return "";
+    if (!d) return '';
     const dt = new Date(d);
-    return dt.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
-  }
-
-  function statusClass(status) {
-    const s = (status || "").toLowerCase();
-    if (s.includes("pending")) return "pending";
-    if (s.includes("complete") || s.includes("closed")) return "completed";
-    return "inprogress";
-  }
-
-  // Basic HTML escape for issue text
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+    return dt.toLocaleDateString(undefined, { month: 'short', day: '2-digit', year: 'numeric' });
   }
 });

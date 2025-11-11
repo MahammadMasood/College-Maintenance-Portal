@@ -1,9 +1,7 @@
 
-
-
 document.addEventListener("DOMContentLoaded", function () {
   const selectAll = document.getElementById("selectAll");
-  const sendBtn = document.getElementById("sendQuotationBtn");
+  const sendBtn = document.getElementById("sendQuotationBtn")
   const generatedArea = document.getElementById("generatedLinkArea");
   const showLastLinkBtn = document.getElementById("showLastLinkBtn");
   

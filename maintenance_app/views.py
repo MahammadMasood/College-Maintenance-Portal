@@ -577,8 +577,22 @@ def user_logout(request):
 
 from django.shortcuts import render
 
+@login_required
+@user_passes_test(is_admin)
 def reports_view(request):
-    return render(request, 'reports.html')
+    """View for displaying maintenance reports with filtering."""
+    # Get all maintenance requests ordered by date
+    requests = MaintenanceRequest.objects.all().order_by('-date_submitted')
+    
+    # Get distinct departments for the filter dropdown
+    departments = list(MaintenanceRequest.objects.values_list('branch', flat=True).distinct().order_by('branch'))
+    
+    context = {
+        'requests': requests,
+        'departments': departments,
+    }
+    
+    return render(request, 'reports.html', context)
 
 def department_list(request):
     return render(request, 'department_list.html')

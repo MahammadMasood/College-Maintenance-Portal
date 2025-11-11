@@ -59,6 +59,90 @@
 
     /* keep table width stable */
     table { table-layout: fixed; word-wrap:break-word; }
+
+    /* Table header - match navbar color */
+    #requestTable thead.table-dark {
+      background-color: #003366 !important;
+    }
+
+    #requestTable thead.table-dark th {
+      background-color: #003366 !important;
+      border-color: #003366;
+      color: #fff;
+    }
+
+    /* Filter icon in table header should be white when active */
+    #requestTable thead.table-dark .filter-icon {
+      color: #cfd8e3;
+    }
+
+    #requestTable thead.table-dark .filter-icon:hover,
+    #requestTable thead.table-dark .filter-icon.active {
+      color: #fff;
+    }
+
+    /* Maintenance Requests Table Header - Match Navbar Color */
+    #requestTable thead.maintenance-table-header {
+      background-color: #003366;
+      color: #fff;
+    }
+
+    #requestTable thead.maintenance-table-header th {
+      background-color: #003366;
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.1);
+      font-weight: 600;
+    }
+
+    #requestTable thead.maintenance-table-header th:hover {
+      background-color: #003366;
+    }
+
+    /* Filter icons in table header */
+    #requestTable thead.maintenance-table-header .filter-icon {
+      color: #cfd8e3;
+      transition: color 0.2s;
+    }
+
+    #requestTable thead.maintenance-table-header .filter-icon:hover,
+    #requestTable thead.maintenance-table-header .filter-icon.active {
+      color: #fff;
+    }
+
+    /* Ensure checkbox in header is visible */
+    #requestTable thead.maintenance-table-header th input[type="checkbox"] {
+      cursor: pointer;
+    }
+
+    /* Quotation Link Area */
+    #generatedLinkArea {
+      width: 100%;
+    }
+    
+    #generatedLinkArea .alert {
+      margin-bottom: 0;
+    }
+    
+    #quotationLinkInput {
+      font-size: 0.875rem;
+      font-family: monospace;
+    }
+    
+    #copyLinkBtn {
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    
+    @media (max-width: 768px) {
+      #generatedLinkArea .d-flex {
+        flex-direction: column;
+      }
+      
+      #copyLinkBtn {
+        width: 100%;
+        margin-top: 8px;
+      }
+    }
   </style>
 </head>
 
@@ -112,7 +196,7 @@
       {% if requests %}
       <div class="table-responsive fixed-height">
         <table class="table table-hover align-middle text-center" id="requestTable">
-          <thead class="table-dark">
+          <thead class="maintenance-table-header">
             <tr>
               <th style="width:48px"><input id="selectAll" type="checkbox"></th>
               <th style="width:60px">ID</th>
@@ -348,29 +432,94 @@
         document.querySelectorAll('.req-checkbox').forEach(cb => cb.checked = checked);
       });
 
-      // Quotation button: minimal working example (uses generateUrl if present)
+      // Quotation button: Generate link and show copy button
       const sendBtn = document.getElementById('sendQuotationBtn');
       const generateUrl = "{% url 'generate_quotation_link' %}";
       const csrfToken = "{{ csrf_token }}";
+      const generatedLinkArea = document.getElementById('generatedLinkArea');
+      
       sendBtn?.addEventListener('click', async () => {
         const selected = Array.from(document.querySelectorAll('.req-checkbox:checked')).map(i => i.value);
-        if (!selected.length) { alert('Please select at least one request.'); return; }
+        if (!selected.length) { 
+          alert('Please select at least one request.'); 
+          return; 
+        }
+        
         sendBtn.disabled = true;
         sendBtn.textContent = 'Generating...';
+        
         try {
           const fd = new FormData();
           selected.forEach(id => fd.append('selected_requests[]', id));
           fd.append('csrfmiddlewaretoken', csrfToken);
-          const res = await fetch(generateUrl, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+          
+          const res = await fetch(generateUrl, { 
+            method:'POST', 
+            body: fd, 
+            headers: {'X-Requested-With':'XMLHttpRequest'} 
+          });
+          
           const data = await res.json();
+          
           if (data.success) {
-            document.getElementById('generatedLinkArea').innerHTML = `<div class="alert alert-success">Quotation link: <a href="${data.link}" target="_blank">${data.link}</a></div>`;
+            generatedLinkArea.innerHTML = `
+              <div class="alert alert-success mb-2">
+                <strong>✅ Quotation link generated successfully!</strong><br>
+                <small>Share this link with vendors:</small><br>
+                <div class="d-flex align-items-center gap-2 mt-2">
+                  <input type="text" class="form-control form-control-sm" id="quotationLinkInput" value="${data.link}" readonly style="flex: 1;">
+                  <button id="copyLinkBtn" class="btn btn-primary btn-sm" title="Copy link">
+                    <i class="bi bi-clipboard"></i> Copy
+                  </button>
+                </div>
+                <a href="${data.link}" target="_blank" class="text-break small d-block mt-2">${data.link}</a>
+              </div>
+            `;
+            
+            // Add copy button functionality
+            const copyBtn = document.getElementById('copyLinkBtn');
+            const linkInput = document.getElementById('quotationLinkInput');
+            
+            copyBtn.addEventListener('click', async () => {
+              try {
+                // Try using the Clipboard API (modern browsers)
+                await navigator.clipboard.writeText(data.link);
+                copyBtn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                copyBtn.classList.remove('btn-primary');
+                copyBtn.classList.add('btn-success');
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                  copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy';
+                  copyBtn.classList.remove('btn-success');
+                  copyBtn.classList.add('btn-primary');
+                }, 2000);
+              } catch (err) {
+                // Fallback for older browsers
+                linkInput.select();
+                linkInput.setSelectionRange(0, 99999); // For mobile devices
+                try {
+                  document.execCommand('copy');
+                  copyBtn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                  copyBtn.classList.remove('btn-primary');
+                  copyBtn.classList.add('btn-success');
+                  
+                  setTimeout(() => {
+                    copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy';
+                    copyBtn.classList.remove('btn-success');
+                    copyBtn.classList.add('btn-primary');
+                  }, 2000);
+                } catch (fallbackErr) {
+                  alert('Failed to copy. Please copy manually: ' + data.link);
+                }
+              }
+            });
           } else {
-            document.getElementById('generatedLinkArea').innerHTML = `<div class="alert alert-danger">${data.message || 'Failed'}</div>`;
+            generatedLinkArea.innerHTML = `<div class="alert alert-danger">${data.message || 'Failed to generate link'}</div>`;
           }
         } catch (err) {
           console.error(err);
-          document.getElementById('generatedLinkArea').innerHTML = `<div class="alert alert-danger">Error generating link</div>`;
+          generatedLinkArea.innerHTML = `<div class="alert alert-danger">Error generating link. Please try again.</div>`;
         } finally {
           sendBtn.disabled = false;
           sendBtn.textContent = 'Send Selected to Quotation';
